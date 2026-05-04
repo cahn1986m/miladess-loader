@@ -120,6 +120,23 @@ body{font-family:'Segoe UI',sans-serif;background:var(--c1);color:var(--white);m
 
 /* === NOTIFICATION === */
 #notif{position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:9999;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:700;display:none;max-width:90%;text-align:center}
+
+/* === REPORT MODAL === */
+.modal-overlay{position:fixed;inset:0;background:#000000aa;z-index:400;display:none;align-items:flex-end;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal-box{background:var(--c2);border-radius:16px 16px 0 0;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;padding:20px 16px}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.modal-title{font-size:15px;font-weight:700}
+.modal-close{background:none;border:none;color:var(--gray);font-size:22px;cursor:pointer;line-height:1}
+.upload-group{margin-bottom:16px}
+.upload-label{font-size:11px;color:var(--gray);margin-bottom:7px;display:block;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.upload-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px;background:#ffffff08;border:1px dashed #ffffff25;border-radius:10px;cursor:pointer;color:var(--gray);font-size:13px;margin-bottom:8px;transition:.2s}
+.upload-btn:hover{border-color:var(--accent);color:var(--white)}
+.img-thumb{width:100%;border-radius:8px;max-height:140px;object-fit:cover;display:none;margin-bottom:8px;border:1px solid #ffffff15}
+.rpt-input{width:100%;background:#ffffff10;border:1px solid #ffffff25;color:var(--white);padding:10px 14px;border-radius:10px;font-size:13px;outline:none;margin-bottom:8px}
+.rpt-input:focus{border-color:var(--accent)}
+.rpt-input::placeholder{color:var(--gray)}
+.btn-generate{width:100%;padding:14px;background:var(--green);border:none;border-radius:10px;color:#000;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px}
 </style>
 </head>
 <body>
@@ -167,7 +184,10 @@ body{font-family:'Segoe UI',sans-serif;background:var(--c1);color:var(--white);m
   <div class="screen" id="screen-summary">
     <div style="padding:10px 14px;background:var(--c2);border-bottom:1px solid #ffffff10;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
       <span style="font-size:13px;font-weight:600">ملخص التحميل</span>
-      <button onclick="resetAll()" style="background:#e9456022;border:1px solid var(--accent);color:var(--accent);padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🗑 تصفير الكل</button>
+      <div style="display:flex;gap:8px">
+        <button onclick="openReportModal()" style="background:#00b89422;border:1px solid var(--green);color:var(--green);padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📋 تقرير</button>
+        <button onclick="resetAll()" style="background:#e9456022;border:1px solid var(--accent);color:var(--accent);padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🗑 تصفير</button>
+      </div>
     </div>
     <div class="summary-content">
       <div class="summary-grid" id="summary-grid"></div>
@@ -226,6 +246,38 @@ body{font-family:'Segoe UI',sans-serif;background:var(--c1);color:var(--white);m
   </div>
 </div>
 
+<!-- ===== REPORT MODAL ===== -->
+<div class="modal-overlay" id="report-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">📋 تقرير التحميل</span>
+      <button class="modal-close" onclick="closeReportModal()">✕</button>
+    </div>
+    <div class="upload-group">
+      <label class="upload-label">صورة الكونتينر</label>
+      <label class="upload-btn" for="img-container">📷 التقط أو اختر صورة</label>
+      <input type="file" id="img-container" accept="image/*" style="display:none" onchange="previewImg(this,'prev-container')">
+      <img class="img-thumb" id="prev-container">
+    </div>
+    <div class="upload-group">
+      <label class="upload-label">صورة القفل / الختم</label>
+      <label class="upload-btn" for="img-seal">📷 التقط أو اختر صورة</label>
+      <input type="file" id="img-seal" accept="image/*" style="display:none" onchange="previewImg(this,'prev-seal')">
+      <img class="img-thumb" id="prev-seal">
+      <input class="rpt-input" type="text" id="seal-num" placeholder="رقم القفل / الختم">
+    </div>
+    <div class="upload-group">
+      <label class="upload-label">السائق</label>
+      <label class="upload-btn" for="img-driver">📷 صورة السائق</label>
+      <input type="file" id="img-driver" accept="image/*" style="display:none" onchange="previewImg(this,'prev-driver')">
+      <img class="img-thumb" id="prev-driver">
+      <input class="rpt-input" type="text" id="driver-name" placeholder="اسم السائق">
+      <input class="rpt-input" type="text" id="driver-id" placeholder="رقم الهوية">
+    </div>
+    <button class="btn-generate" onclick="downloadReport()">⬇ تحميل التقرير</button>
+  </div>
+</div>
+
 <div id="notif"></div>
 
 <script>
@@ -237,6 +289,7 @@ const TOTAL = PRODUCTS.reduce((s,p) => s + p.cartons, 0);
 
 let scanned = {}, loadLog = [], camActive = false, camStream = null, rafId = null, paused = false;
 let apiOnline = false;
+let loadStart = localStorage.getItem('mld_start') || null;
 
 // ===== AUDIO =====
 let audioCtx = null;
@@ -363,6 +416,7 @@ function processCode(raw) {
   if (scanned[key].has(ctn)) { playBeep('warn'); notify('سبق مسحها!', 'warn'); return false; }
   if (ctn < 1 || ctn > prod.cartons) { playBeep('error'); notify('رقم كرتونة خاطئ', 'error'); return false; }
   scanned[key].add(ctn);
+  if (!loadStart) { loadStart = new Date().toISOString(); localStorage.setItem('mld_start', loadStart); }
   const ts = new Date().toTimeString().slice(0, 8);
   loadLog.push({time: ts, text: `${prod.name} [${prod.size}] — كرتونة ${ctn}/${prod.cartons}`});
   addLogItem(ts, prod.name, ctn, prod.cartons);
@@ -602,10 +656,147 @@ function resetAll() {
   if (!confirm('تصفير كل بيانات التحميل؟ لا يمكن التراجع.')) return;
   scanned = {}; loadLog = [];
   localStorage.removeItem('mld_scanned'); localStorage.removeItem('mld_log');
+  localStorage.removeItem('mld_start'); loadStart = null;
   pushToServer({});
   updateHdr(); closeSheet();
   document.getElementById('log-feed').innerHTML = '';
   notify('تم التصفير ✓', 'success');
+}
+
+// ===== REPORT =====
+function openReportModal() { document.getElementById('report-modal').classList.add('show'); }
+function closeReportModal() { document.getElementById('report-modal').classList.remove('show'); }
+
+function previewImg(input, prevId) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { const img = document.getElementById(prevId); img.src = e.target.result; img.style.display = 'block'; };
+  reader.readAsDataURL(file);
+}
+
+function getImgSrc(prevId) {
+  const img = document.getElementById(prevId);
+  return img && img.style.display !== 'none' ? img.src : null;
+}
+
+function downloadReport() {
+  const tot = Object.values(scanned).reduce((s,v) => s+v.size, 0);
+  const pct = Math.round(tot/TOTAL*100);
+  const done = PRODUCTS.filter(p => scanned[String(p.no)] && scanned[String(p.no)].size >= p.cartons).length;
+  const part = PRODUCTS.filter(p => scanned[String(p.no)] && scanned[String(p.no)].size > 0 && scanned[String(p.no)].size < p.cartons).length;
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('ar-SA');
+  const timeStr = now.toLocaleTimeString('ar-SA');
+  let duration = '—';
+  if (loadStart) {
+    const ms = now - new Date(loadStart);
+    const h = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000);
+    duration = h > 0 ? `${h} ساعة و ${m} دقيقة` : `${m} دقيقة`;
+  }
+  const containerImg = getImgSrc('prev-container');
+  const sealImg = getImgSrc('prev-seal');
+  const driverImg = getImgSrc('prev-driver');
+  const sealNum = document.getElementById('seal-num').value;
+  const driverName = document.getElementById('driver-name').value;
+  const driverId = document.getElementById('driver-id').value;
+
+  let prodRows = '';
+  PRODUCTS.forEach(p => {
+    const key = String(p.no), cnt = scanned[key] ? scanned[key].size : 0;
+    const ppct = Math.round(cnt/p.cartons*100);
+    const color = cnt >= p.cartons ? '#00b894' : cnt > 0 ? '#f59e0b' : '#94a3b8';
+    const status = cnt >= p.cartons ? '✓ مكتمل' : cnt > 0 ? `${ppct}%` : '—';
+    const scannedList = scanned[key] ? [...scanned[key]].sort((a,b)=>a-b).join(', ') : '—';
+    prodRows += `<tr><td>${p.no}</td><td>${p.name}</td><td>${p.size}</td><td>${cnt}/${p.cartons}</td><td style="color:${color};font-weight:700">${status}</td><td style="color:#64748b;font-size:11px">${scannedList}</td></tr>`;
+  });
+
+  const photoBox = (src, label, meta) => src
+    ? `<div class="pbox"><img src="${src}"><p class="plbl">${label}</p>${meta?`<p class="pmeta">${meta}</p>`:''}</div>`
+    : `<div class="pbox"><div class="pnone">لا توجد صورة</div><p class="plbl">${label}</p>${meta?`<p class="pmeta">${meta}</p>`:''}</div>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>تقرير التحميل — Miladess</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f1f5f9;color:#1e293b;padding:20px}
+.header{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;border-radius:14px;padding:22px 24px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.logo{font-size:20px;font-weight:900;color:#e94560;letter-spacing:1px}
+.header-sub{font-size:12px;color:#94a3b8;margin-top:3px}
+.header-info{text-align:left;font-size:12px;color:#94a3b8;line-height:1.9}
+.header-info b{color:#fff}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.card{background:#fff;border-radius:10px;padding:14px;text-align:center;box-shadow:0 1px 4px #0000000d}
+.cv{font-size:28px;font-weight:900}
+.cl{font-size:11px;color:#94a3b8;margin-top:3px}
+.cg{color:#00b894}.ca{color:#f59e0b}.cr{color:#e94560}
+section{background:#fff;border-radius:10px;padding:16px;margin-bottom:14px;box-shadow:0 1px 4px #0000000d}
+.sec-title{font-size:13px;font-weight:700;border-bottom:2px solid #e94560;padding-bottom:7px;margin-bottom:14px}
+.photos{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.pbox{text-align:center}
+.pbox img{width:100%;height:160px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0}
+.pnone{width:100%;height:160px;background:#f8fafc;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#cbd5e1;font-size:12px;border:2px dashed #e2e8f0}
+.plbl{font-size:12px;font-weight:700;color:#475569;margin-top:6px}
+.pmeta{font-size:11px;color:#94a3b8;margin-top:2px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#1e293b;color:#fff;padding:9px 10px;text-align:right;font-weight:600}
+td{padding:7px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+tr:nth-child(even){background:#f8fafc}
+.footer{text-align:center;font-size:11px;color:#94a3b8;margin-top:18px;padding-top:12px;border-top:1px solid #e2e8f0}
+@media print{body{padding:8px;background:#fff}.header{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <div class="logo">▣ MILADESS</div>
+    <div class="header-sub">تقرير عملية التحميل</div>
+  </div>
+  <div class="header-info">
+    <div>التاريخ: <b>${dateStr}</b></div>
+    <div>الوقت: <b>${timeStr}</b></div>
+    <div>مدة التحميل: <b>${duration}</b></div>
+  </div>
+</div>
+
+<div class="cards">
+  <div class="card"><div class="cv cg">${tot}</div><div class="cl">كراتين محمَّلة</div></div>
+  <div class="card"><div class="cv">${TOTAL}</div><div class="cl">إجمالي المطلوب</div></div>
+  <div class="card"><div class="cv ${pct===100?'cg':pct>50?'ca':'cr'}">${pct}%</div><div class="cl">نسبة الإنجاز</div></div>
+  <div class="card"><div class="cv cg">${done}</div><div class="cl">أصناف مكتملة</div></div>
+  <div class="card"><div class="cv ca">${part}</div><div class="cl">أصناف جزئية</div></div>
+  <div class="card"><div class="cv">${PRODUCTS.length-done-part}</div><div class="cl">لم تُحمَّل</div></div>
+</div>
+
+<section>
+  <div class="sec-title">صور الشحنة والسائق</div>
+  <div class="photos">
+    ${photoBox(containerImg,'الكونتينر','')}
+    ${photoBox(sealImg,'القفل / الختم', sealNum ? `رقم: ${sealNum}` : '')}
+    ${photoBox(driverImg, driverName||'السائق', driverId ? `هوية: ${driverId}` : '')}
+  </div>
+</section>
+
+<section>
+  <div class="sec-title">تفاصيل الأصناف</div>
+  <table>
+    <tr><th>#</th><th>الصنف</th><th>الحجم</th><th>محمَّل</th><th>الحالة</th><th>أرقام الكراتين</th></tr>
+    ${prodRows}
+  </table>
+</section>
+
+<div class="footer">Miladess Loading System — تم إنشاء هذا التقرير بتاريخ ${dateStr}</div>
+</body>
+</html>`;
+
+  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `miladess-${now.toISOString().slice(0,10)}.html`;
+  a.click(); URL.revokeObjectURL(url);
+  closeReportModal();
 }
 
 // ===== INIT =====
