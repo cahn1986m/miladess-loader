@@ -309,13 +309,16 @@ async function pushToServer(raw) {
       body: JSON.stringify(raw)
     });
     if (!r.ok) {
-      const err = await r.json().catch(() => ({}));
-      console.error('Push failed:', r.status, err);
+      const err = await r.json().catch(() => ({ error: r.status }));
+      notify('فشل الحفظ: ' + (err.error || r.status), 'error');
       setDot(false);
     } else {
       setDot(true);
     }
-  } catch(e) { console.error('Push error:', e); setDot(false); }
+  } catch(e) {
+    notify('لا اتصال بالسيرفر', 'error');
+    setDot(false);
+  }
 }
 
 async function pullFromServer() {
@@ -365,6 +368,7 @@ function processCode(raw) {
   addLogItem(ts, prod.name, ctn, prod.cartons);
   const isDone = scanned[key].size >= prod.cartons;
   playBeep(isDone ? 'done' : 'success');
+  if (navigator.vibrate) navigator.vibrate(isDone ? [80, 40, 80] : 60);
   showSheet(prod, ctn);
   updateHdr();
   saveState();
