@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0">
+<title>Miladess — نظام التحميل</title>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<style>
+:root{--c1:#1a1a2e;--c2:#16213e;--accent:#e94560;--green:#00b894;--amber:#fdcb6e;--white:#f8f9fa;--gray:#adb5bd}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:var(--c1);color:var(--white);min-height:100vh}
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.topbar{background:var(--c2);border-bottom:1px solid #ffffff15;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.logo{font-size:13px;font-weight:700;color:var(--accent);letter-spacing:1px}
+.stats-bar{display:flex;gap:8px;font-size:12px;color:var(--gray);align-items:center}
+.stat-val{color:var(--white);font-weight:700}
+.online-dot{width:8px;height:8px;border-radius:50%;background:var(--gray);display:inline-block;flex-shrink:0}
+.online-dot.on{background:var(--green);box-shadow:0 0 5px var(--green)}
+.tabs{display:flex;background:var(--c2);border-bottom:1px solid #ffffff10;flex-shrink:0;overflow-x:auto}
+.tab{padding:10px 16px;font-size:12px;cursor:pointer;border-bottom:3px solid transparent;color:var(--gray);transition:.2s;white-space:nowrap;user-select:none}
+.tab.active{color:var(--white);border-bottom-color:var(--accent)}
+.screen{display:none;flex:1;overflow:hidden;flex-direction:column}
+.screen.active{display:flex}
+
+/* === SCAN SCREEN === */
+.scan-top{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:12px;padding:12px 16px}
+#cam-wrap{width:100%;max-width:400px;position:relative;border-radius:12px;overflow:hidden;background:#000;display:none}
+#cam-wrap video{width:100%;display:block}
+#cam-frame{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:65%;aspect-ratio:1;border:2px solid var(--accent);border-radius:8px;pointer-events:none;box-shadow:0 0 0 9999px rgba(0,0,0,.45)}
+#cam-frame::before,#cam-frame::after{content:'';position:absolute;width:20px;height:20px;border-color:var(--accent);border-style:solid}
+#cam-frame::before{top:-2px;left:-2px;border-width:3px 0 0 3px}
+#cam-frame::after{bottom:-2px;right:-2px;border-width:0 3px 3px 0}
+#scan-canvas{display:none}
+.manual-input{display:flex;gap:8px;width:100%;max-width:400px}
+.manual-input input{flex:1;background:#ffffff10;border:1px solid #ffffff25;color:var(--white);padding:11px 14px;border-radius:10px;font-size:14px;outline:none;direction:ltr}
+.manual-input input:focus{border-color:var(--accent)}
+.btn{padding:11px 16px;border-radius:10px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:.2s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-cam{background:var(--c2);border:1px solid #ffffff25;color:var(--white);width:100%;max-width:400px;padding:13px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600}
+.btn-cam.active{background:#e9456018;border-color:var(--accent);color:var(--accent)}
+.hint{font-size:11px;color:var(--gray);text-align:center;line-height:1.7;direction:ltr}
+.scan-log-area{flex:1;overflow-y:auto;padding:8px 16px;display:flex;flex-direction:column;align-items:center}
+.log-feed{width:100%;max-width:400px;display:flex;flex-direction:column;gap:5px}
+.log-item{background:var(--c2);border:1px solid #ffffff10;border-radius:7px;padding:7px 12px;display:flex;gap:10px;font-size:11px;align-items:center}
+.log-time{color:var(--accent);font-family:monospace;min-width:68px;direction:ltr}
+.log-text{color:var(--gray);flex:1;text-align:right}
+
+/* === RESULT BOTTOM SHEET === */
+.result-sheet{position:fixed;bottom:0;left:0;right:0;background:var(--c2);border-top:2px solid var(--accent);border-radius:16px 16px 0 0;padding:16px;z-index:300;transform:translateY(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);max-height:78vh;overflow-y:auto}
+.result-sheet.show{transform:translateY(0)}
+.sheet-handle{width:40px;height:4px;background:#ffffff30;border-radius:2px;margin:0 auto 14px;cursor:pointer}
+.product-badge{display:inline-block;background:#e9456018;color:var(--accent);padding:2px 10px;border-radius:20px;font-size:11px;margin-bottom:6px;border:1px solid #e9456035}
+.product-name{font-size:18px;font-weight:700;margin-bottom:3px}
+.product-sub{font-size:12px;color:var(--gray)}
+.counters{display:flex;margin:12px 0;border:1px solid #ffffff15;border-radius:10px;overflow:hidden}
+.counter-box{flex:1;text-align:center;padding:12px 6px;border-left:1px solid #ffffff10}
+.counter-box:last-child{border-left:none}
+.counter-val{font-size:32px;font-weight:800;line-height:1}
+.counter-lbl{font-size:10px;color:var(--gray);margin-top:3px}
+.progress-wrap{width:100%;background:#ffffff10;border-radius:6px;height:8px}
+.progress-fill{height:8px;border-radius:6px;background:var(--green);transition:.5s}
+.alert-done{background:#00b89420;border:1px solid var(--green);border-radius:8px;padding:10px;text-align:center;color:var(--green);font-weight:700;font-size:13px;margin-top:8px}
+.ctn-section{margin-top:14px}
+.ctn-title{font-size:11px;color:var(--gray);margin-bottom:8px;font-weight:600}
+.ctn-grid{display:flex;flex-wrap:wrap;gap:5px}
+.ctn-chip{width:34px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
+.ctn-chip.loaded{background:#00b89425;color:var(--green);border:1px solid var(--green)}
+.ctn-chip.pending{background:#ffffff08;color:#ffffff35;border:1px solid #ffffff10}
+.ctn-chip.just-loaded{background:var(--green);color:#000;border:1px solid var(--green);animation:pop .4s ease}
+@keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.3)}100%{transform:scale(1)}}
+
+/* === PRODUCTS SCREEN === */
+.search-bar{padding:10px 14px;background:var(--c2);border-bottom:1px solid #ffffff10;flex-shrink:0}
+.search-bar input{width:100%;background:#ffffff10;border:1px solid #ffffff20;color:var(--white);padding:9px 14px;border-radius:10px;font-size:14px;outline:none}
+.search-bar input:focus{border-color:var(--accent)}
+.products-list{flex:1;overflow-y:auto;padding:10px 14px}
+.product-row{background:var(--c2);border:1px solid #ffffff10;border-radius:10px;padding:11px 14px;margin-bottom:8px;display:grid;grid-template-columns:38px 1fr 80px 70px;gap:8px;align-items:center;cursor:pointer;transition:.2s}
+.product-row:hover{border-color:#ffffff30;background:#1e2d52}
+.product-row.done{border-color:var(--green);background:#00b89408}
+.product-row.partial{border-color:var(--amber)}
+.prod-no{font-size:11px;color:var(--gray);text-align:center;font-weight:600}
+.prod-info{min-width:0}
+.prod-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prod-size{font-size:10px;color:var(--gray);margin-top:2px}
+.prog-nums{font-size:12px;font-weight:700;text-align:center}
+.prog-bar{background:#ffffff10;border-radius:4px;height:4px;margin-top:4px}
+.prog-inner{height:4px;border-radius:4px;background:var(--green);transition:.3s}
+.prod-status{text-align:center}
+.badge{display:inline-block;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.badge-done{background:#00b89430;color:var(--green)}
+.badge-partial{background:#fdcb6e30;color:var(--amber)}
+.badge-pending{background:#ffffff10;color:var(--gray)}
+
+/* === SUMMARY SCREEN === */
+.summary-content{flex:1;overflow-y:auto;padding:14px}
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.sum-card{background:var(--c2);border:1px solid #ffffff10;border-radius:10px;padding:14px;text-align:center}
+.sum-val{font-size:26px;font-weight:800}
+.sum-lbl{font-size:11px;color:var(--gray);margin-top:4px}
+.sum-green{color:var(--green)}.sum-amber{color:var(--amber)}.sum-red{color:var(--accent)}
+.panel{background:var(--c2);border:1px solid #ffffff10;border-radius:10px;padding:14px;margin-bottom:10px}
+.panel-title{font-size:13px;font-weight:700;margin-bottom:10px}
+.issue-row{display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid #ffffff08;font-size:12px;align-items:center}
+.log-entry{display:flex;gap:10px;padding:6px 0;border-top:1px solid #ffffff08;font-size:11px}
+.log-time-s{color:var(--accent);min-width:68px;font-family:monospace;direction:ltr}
+.log-text-s{color:var(--gray);flex:1;text-align:right}
+
+/* === VIEWER MODE === */
+.viewer-app{display:none;flex-direction:column;height:100vh;overflow:hidden}
+.viewer-app.active{display:flex}
+.viewer-header{padding:20px 16px 14px;background:var(--c2);border-bottom:1px solid #ffffff10;text-align:center;flex-shrink:0}
+.viewer-pct{font-size:60px;font-weight:900;color:var(--green);line-height:1}
+.viewer-nums-row{display:flex;gap:20px;justify-content:center;margin-top:12px;font-size:13px}
+.viewer-bar-wrap{height:10px;background:#ffffff10;border-radius:5px;margin:12px 16px 0;flex-shrink:0}
+.viewer-bar-fill{height:10px;border-radius:5px;background:var(--green);transition:width 1s ease}
+.viewer-body{flex:1;overflow-y:auto;padding:12px 14px}
+.viewer-live{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--green);background:#00b89415;border:1px solid #00b89435;padding:3px 10px;border-radius:20px;margin-bottom:12px}
+.viewer-live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* === NOTIFICATION === */
+#notif{position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:9999;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:700;display:none;max-width:90%;text-align:center}
+</style>
+</head>
+<body>
+
+<!-- ===== SCANNER APP ===== -->
+<div class="app" id="scanner-app">
+  <div class="topbar">
+    <span class="logo">▣ MILADESS — نظام التحميل</span>
+    <div class="stats-bar">
+      <span class="online-dot" id="online-dot"></span>
+      <span>محمَّل: <span class="stat-val" id="hdr-loaded">0</span> / 2513</span>
+      <span><span class="stat-val" id="hdr-pct">0%</span></span>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('scan')">📷 سكان</div>
+    <div class="tab" onclick="switchTab('products')">📦 المنتجات</div>
+    <div class="tab" onclick="switchTab('summary')">📊 ملخص</div>
+  </div>
+
+  <div class="screen active" id="screen-scan">
+    <div class="scan-top">
+      <button class="btn btn-cam" id="cam-btn" onclick="toggleCam()">📷 تشغيل الكامرا</button>
+      <div id="cam-wrap">
+        <video id="cam-video" playsinline autoplay muted></video>
+        <div id="cam-frame"></div>
+        <canvas id="scan-canvas"></canvas>
+      </div>
+      <div class="manual-input">
+        <input type="text" id="qr-input" placeholder="MLD-001-CTN-01" autocomplete="off" onkeydown="if(event.key==='Enter')doScan()">
+        <button class="btn btn-primary" onclick="doScan()">سكان</button>
+      </div>
+      <div class="hint">صيغة: MLD-[رقم]-CTN-[كرتونة]</div>
+    </div>
+    <div class="scan-log-area">
+      <div class="log-feed" id="log-feed"></div>
+    </div>
+  </div>
+
+  <div class="screen" id="screen-products">
+    <div class="search-bar"><input type="text" id="prod-search" placeholder="🔍 ابحث..." oninput="renderProducts()"></div>
+    <div class="products-list" id="products-list"></div>
+  </div>
+
+  <div class="screen" id="screen-summary">
+    <div style="padding:10px 14px;background:var(--c2);border-bottom:1px solid #ffffff10;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <span style="font-size:13px;font-weight:600">ملخص التحميل</span>
+      <button onclick="resetAll()" style="background:#e9456022;border:1px solid var(--accent);color:var(--accent);padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🗑 تصفير الكل</button>
+    </div>
+    <div class="summary-content">
+      <div class="summary-grid" id="summary-grid"></div>
+      <div class="panel" id="issues-panel"></div>
+      <div class="panel" id="log-panel"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== VIEWER APP (read-only) ===== -->
+<div class="viewer-app" id="viewer-app">
+  <div class="topbar">
+    <span class="logo">▣ MILADESS — متابعة التحميل</span>
+    <div class="stats-bar">
+      <span class="online-dot on"></span>
+      <span style="color:var(--green);font-size:11px">مباشر</span>
+    </div>
+  </div>
+  <div class="viewer-header">
+    <div class="viewer-pct" id="v-pct">0%</div>
+    <div style="font-size:12px;color:var(--gray);margin-top:4px">نسبة إنجاز التحميل</div>
+    <div class="viewer-nums-row">
+      <div><span class="stat-val sum-green" id="v-loaded">0</span> <span style="color:var(--gray)">محمَّل</span></div>
+      <div><span class="stat-val sum-amber" id="v-remain">2513</span> <span style="color:var(--gray)">متبقي</span></div>
+      <div><span class="stat-val" id="v-total">2513</span> <span style="color:var(--gray)">إجمالي</span></div>
+    </div>
+  </div>
+  <div class="viewer-bar-wrap"><div class="viewer-bar-fill" id="v-bar" style="width:0%"></div></div>
+  <div class="viewer-body">
+    <div class="viewer-live"><span class="viewer-live-dot"></span> يتحدث تلقائياً</div>
+    <div class="summary-grid" style="margin-bottom:14px">
+      <div class="sum-card"><div class="sum-val sum-green" id="v-done">0</div><div class="sum-lbl">أصناف مكتملة</div></div>
+      <div class="sum-card"><div class="sum-val sum-amber" id="v-part">0</div><div class="sum-lbl">أصناف جزئية</div></div>
+      <div class="sum-card"><div class="sum-val" id="v-pend">116</div><div class="sum-lbl">لم تبدأ بعد</div></div>
+    </div>
+    <div id="v-list"></div>
+  </div>
+</div>
+
+<!-- ===== RESULT BOTTOM SHEET ===== -->
+<div class="result-sheet" id="result-sheet">
+  <div class="sheet-handle" onclick="closeSheet()"></div>
+  <div class="product-badge" id="sr-badge"></div>
+  <div class="product-name" id="sr-name">—</div>
+  <div class="product-sub" id="sr-sub"></div>
+  <div class="counters">
+    <div class="counter-box"><div class="counter-val" id="sr-count" style="color:var(--green)">0</div><div class="counter-lbl">مُحمَّل</div></div>
+    <div class="counter-box"><div class="counter-val" id="sr-total" style="color:var(--gray)">0</div><div class="counter-lbl">إجمالي</div></div>
+    <div class="counter-box"><div class="counter-val" id="sr-remain" style="color:var(--amber)">0</div><div class="counter-lbl">متبقي</div></div>
+  </div>
+  <div class="progress-wrap"><div class="progress-fill" id="sr-prog" style="width:0%"></div></div>
+  <div id="sr-alert"></div>
+  <div class="ctn-section">
+    <div class="ctn-title">الكراتين المحمَّلة:</div>
+    <div class="ctn-grid" id="ctn-grid"></div>
+  </div>
+</div>
+
+<div id="notif"></div>
+
+<script>
+const API_URL = '/api/data';
+const IS_VIEWER = location.search.includes('view');
+
+const PRODUCTS=[{no:1,name:"Tembo",size:"100 ML",cartons:20},{no:2,name:"Illusion",size:"100 ML",cartons:11},{no:"2b",name:"Illusion",size:"100 ML",cartons:12},{no:3,name:"Sayonara",size:"80 ML",cartons:20},{no:4,name:"Arias",size:"100 ML",cartons:24},{no:5,name:"Almaz",size:"100 ML",cartons:24},{no:6,name:"Chaos",size:"50 ML",cartons:16},{no:7,name:"YaYaYa",size:"75 ML",cartons:15},{no:8,name:"Wonder",size:"100 ML",cartons:20},{no:9,name:"Wonderful",size:"75 ML",cartons:20},{no:10,name:"Peace",size:"75 ML",cartons:20},{no:11,name:"Promises",size:"50 ML",cartons:20},{no:12,name:"à toi",size:"100 ML",cartons:20},{no:13,name:"Bliss",size:"80 ML",cartons:20},{no:14,name:"Glow",size:"50 ML",cartons:15},{no:15,name:"Moonlight",size:"100 ML",cartons:20},{no:16,name:"Serenade",size:"100 ML",cartons:20},{no:17,name:"Stormy",size:"50 ML",cartons:15},{no:18,name:"Badge",size:"80 ML",cartons:20},{no:19,name:"Sunshine",size:"100 ML",cartons:20},{no:20,name:"Dreamer",size:"50 ML",cartons:15},{no:21,name:"Tenderly",size:"100 ML",cartons:20},{no:22,name:"La Bella",size:"70 ML",cartons:20},{no:23,name:"Joy",size:"100 ML",cartons:24},{no:24,name:"Sadness",size:"50 ML",cartons:24},{no:25,name:"Solo",size:"50 ML",cartons:24},{no:26,name:"Flame",size:"100 ML",cartons:16},{no:"26b",name:"Flame",size:"100 ML",cartons:4},{no:"26c",name:"Flame",size:"100 ML",cartons:1},{no:27,name:"Freedom",size:"100 ML",cartons:20},{no:28,name:"Starry",size:"50 ML",cartons:24},{no:29,name:"Way",size:"100 ML",cartons:24},{no:30,name:"Veil",size:"100 ML",cartons:20},{no:31,name:"Seduction",size:"100 ML",cartons:20},{no:32,name:"Bellamy",size:"50 ML",cartons:15},{no:33,name:"Utopia",size:"80 ML",cartons:20},{no:34,name:"Sahara",size:"100 ML",cartons:20},{no:35,name:"Poem",size:"80 ML",cartons:20},{no:36,name:"Ribbon",size:"100 ML",cartons:20},{no:37,name:"Lylas",size:"50 ML",cartons:15},{no:38,name:"Dunes",size:"80 ML",cartons:20},{no:39,name:"Earth Delights",size:"100 ML",cartons:20},{no:40,name:"Temptation",size:"100 ML",cartons:20},{no:41,name:"Deep Dive",size:"100 ML",cartons:20},{no:42,name:"Wild",size:"100 ML",cartons:20},{no:43,name:"Reunion",size:"100 ML",cartons:20},{no:44,name:"Real love",size:"100 ML",cartons:20},{no:45,name:"Tender",size:"100 ML",cartons:20},{no:46,name:"Malade",size:"100 ML",cartons:20},{no:47,name:"Breathless",size:"100 ML",cartons:20},{no:48,name:"Lonely",size:"80 ML",cartons:20},{no:49,name:"Jazz",size:"75 ML",cartons:15},{no:50,name:"Mad love",size:"100 ML",cartons:20},{no:51,name:"Reckless",size:"75 ML",cartons:20},{no:52,name:"Gypsy",size:"50 ML",cartons:15},{no:53,name:"Smooth",size:"75 ML",cartons:20},{no:54,name:"Voyage",size:"100 ML",cartons:20},{no:55,name:"Secrets",size:"75 ML",cartons:20},{no:56,name:"Wave",size:"75 ML",cartons:20},{no:57,name:"Real",size:"75 ML",cartons:15},{no:58,name:"Aqua De Vento",size:"80 ML",cartons:24},{no:59,name:"Luce Di Mare",size:"80 ML",cartons:24},{no:60,name:"Blue Aventura",size:"80 ML",cartons:24},{no:61,name:"La Dolce Vita",size:"75 ML",cartons:24},{no:62,name:"Wonder",size:"16 ML",cartons:1},{no:63,name:"Bellamy",size:"16 ML",cartons:1},{no:64,name:"Ribbon",size:"16 ML",cartons:1},{no:65,name:"Aqua De Vento",size:"16 ML",cartons:1},{no:66,name:"Luce Di Mare",size:"16 ML",cartons:1},{no:67,name:"Blue Aventura",size:"16 ML",cartons:1},{no:68,name:"La Dolce Vita",size:"16 ML",cartons:1},{no:69,name:"Face&Body Lotion / MARIAM",size:"40ML",cartons:25},{no:70,name:"Face&Body Lotion / AMEERAT DUBAI",size:"40ML",cartons:25},{no:71,name:"Face&Body Lotion / IMAGINATION",size:"40ML",cartons:25},{no:72,name:"Face&Body Lotion / GOOD GIRL",size:"40ML",cartons:25},{no:73,name:"Face&Body Lotion / PARIS MAGIC",size:"40ML",cartons:25},{no:74,name:"Face&Body Lotion / SULTAN",size:"40ML",cartons:25},{no:75,name:"Face&Body Lotion / YARA",size:"40ML",cartons:25},{no:76,name:"Body Lotion / Secret Romance",size:"500ML",cartons:25},{no:77,name:"Body Lotion / Alovera",size:"500ML",cartons:25},{no:78,name:"Body Lotion / SNAIL OIL",size:"500ML",cartons:25},{no:79,name:"Moisturizing Cream / Musk Dubai",size:"150 G",cartons:4},{no:80,name:"Moisturizing Cream / Dream",size:"150 G",cartons:4},{no:81,name:"Intimate Velvet Cream / Silk Musk",size:"50 ML",cartons:9},{no:82,name:"Intimate Velvet Cream / Candy Musk",size:"50 ML",cartons:9},{no:83,name:"Intimate Velvet Cream / Pineapple Musk",size:"50 ML",cartons:9},{no:84,name:"Royal Honey Nutrition Cream",size:"50 ML",cartons:25},{no:85,name:"Hydrating Oil Gel / Dubai Musk",size:"100 ML",cartons:11},{no:86,name:"Hydrating Oil Gel / Silk Musk",size:"100 ML",cartons:11},{no:87,name:"Facial Scrub - Alovera",size:"500ML",cartons:15},{no:88,name:"Facial Scrub - Avocado & Honey",size:"500ML",cartons:15},{no:89,name:"Shampoo - Argan",size:"400ML",cartons:50},{no:90,name:"Shower Gel Scrub / Coffee & Coconut",size:"1000ML",cartons:25},{no:91,name:"Shower Gel Scrub / Mix Berries",size:"1000ML",cartons:25},{no:92,name:"Shower Gel Scrub / Papaya",size:"1000ML",cartons:25},{no:93,name:"Shower Gel Scrub / Whitening",size:"1000ML",cartons:25},{no:94,name:"Hair Leave On - La Vie",size:"120ML",cartons:50},{no:95,name:"Hair & Body Mist / Dubai Musk",size:"120ML",cartons:50},{no:96,name:"Hair Perfume / Sensual",size:"120ML",cartons:50},{no:97,name:"Body Mist - Pure Charm",size:"250ML",cartons:12},{no:98,name:"Body Mist - Rose Marry",size:"250ML",cartons:12},{no:99,name:"Body Mist - Love Bloom",size:"250ML",cartons:12},{no:100,name:"Body Mist - Love Spell",size:"250ML",cartons:12},{no:101,name:"Body Mist - Amber Romance",size:"250ML",cartons:12},{no:102,name:"Body Mist - Anarchist",size:"250ML",cartons:12},{no:103,name:"Body Mist - Endlessly Love",size:"250ML",cartons:13},{no:104,name:"Body Mist - Mango Tempt",size:"250ML",cartons:13},{no:105,name:"Body Mist - Passion Touch",size:"250ML",cartons:13},{no:106,name:"Body Mist - Wave",size:"250ML",cartons:13},{no:107,name:"Body Mist - Passion",size:"250ML",cartons:13},{no:108,name:"Body Mist - Fairytale",size:"250ML",cartons:13},{no:109,name:"Air Freshner - Aqua",size:"500 ML",cartons:50},{no:110,name:"Air Freshner - Oriental",size:"500 ML",cartons:50},{no:111,name:"Air Freshner - Rose",size:"500 ML",cartons:50},{no:112,name:"Air Freshner - Hams Al Mashaer",size:"320 ML",cartons:75},{no:113,name:"Air Freshner - Zein Al Aemarat",size:"320 ML",cartons:75},{no:114,name:"Air Freshner - Mukhalat Dewaan",size:"320 ML",cartons:75},{no:115,name:"Air Freshner - Shouq",size:"320 ML",cartons:75},{no:116,name:"Dish Wash",size:"1 L",cartons:25}];
+const TOTAL = PRODUCTS.reduce((s,p) => s + p.cartons, 0);
+
+let scanned = {}, loadLog = [], camActive = false, camStream = null, rafId = null, paused = false;
+let apiOnline = false;
+
+// ===== AUDIO =====
+let audioCtx = null;
+function playBeep(type) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    const t = audioCtx.currentTime;
+    if (type === 'success') {
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.3, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      osc.start(t); osc.stop(t + 0.25);
+    } else if (type === 'done') {
+      osc.frequency.value = 660;
+      osc.frequency.setValueAtTime(1046, t + 0.15);
+      gain.gain.setValueAtTime(0.3, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+      osc.start(t); osc.stop(t + 0.45);
+    } else if (type === 'warn') {
+      osc.frequency.value = 440;
+      gain.gain.setValueAtTime(0.2, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+      osc.start(t); osc.stop(t + 0.18);
+    } else if (type === 'error') {
+      osc.type = 'sawtooth';
+      osc.frequency.value = 180;
+      gain.gain.setValueAtTime(0.2, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+      osc.start(t); osc.stop(t + 0.2);
+    }
+  } catch(e) {}
+}
+
+// ===== STATE =====
+function loadState() {
+  try {
+    const s = localStorage.getItem('mld_scanned');
+    const l = localStorage.getItem('mld_log');
+    if (s) { const raw = JSON.parse(s); scanned = {}; for (const k in raw) scanned[k] = new Set(raw[k]); }
+    if (l) loadLog = JSON.parse(l);
+  } catch(e) {}
+}
+
+function saveState() {
+  try {
+    const raw = {};
+    for (const k in scanned) raw[k] = [...scanned[k]];
+    localStorage.setItem('mld_scanned', JSON.stringify(raw));
+    localStorage.setItem('mld_log', JSON.stringify(loadLog.slice(-200)));
+    pushToServer(raw);
+  } catch(e) {}
+}
+
+// ===== SERVER SYNC =====
+async function pushToServer(raw) {
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(raw)
+    });
+    setDot(true);
+  } catch(e) { setDot(false); }
+}
+
+async function pullFromServer() {
+  try {
+    const r = await fetch(API_URL);
+    if (!r.ok) { setDot(false); return; }
+    const raw = await r.json();
+    if (raw && typeof raw === 'object' && Object.keys(raw).length > 0) {
+      scanned = {};
+      for (const k in raw) scanned[k] = new Set(raw[k]);
+      // merge into localStorage
+      const out = {};
+      for (const k in scanned) out[k] = [...scanned[k]];
+      localStorage.setItem('mld_scanned', JSON.stringify(out));
+    }
+    setDot(true);
+  } catch(e) { setDot(false); }
+}
+
+function setDot(on) {
+  apiOnline = on;
+  const d = document.getElementById('online-dot');
+  if (d) d.classList.toggle('on', on);
+}
+
+// ===== SCAN LOGIC =====
+function parseQR(raw) {
+  const m = raw.trim().toUpperCase().match(/^MLD-0*([\w]+)-CTN-0*(\d+)$/);
+  if (!m) return null;
+  const noKey = m[1].replace(/^0+/, '') || '0';
+  const ctn = parseInt(m[2]);
+  const prod = PRODUCTS.find(p => String(p.no).toUpperCase() === noKey);
+  return prod ? {prod, ctn} : null;
+}
+
+function processCode(raw) {
+  const r = parseQR(raw);
+  if (!r) { playBeep('error'); notify('كود غير صحيح', 'error'); return false; }
+  const {prod, ctn} = r;
+  const key = String(prod.no);
+  if (!scanned[key]) scanned[key] = new Set();
+  if (scanned[key].has(ctn)) { playBeep('warn'); notify('سبق مسحها!', 'warn'); return false; }
+  if (ctn < 1 || ctn > prod.cartons) { playBeep('error'); notify('رقم كرتونة خاطئ', 'error'); return false; }
+  scanned[key].add(ctn);
+  const ts = new Date().toTimeString().slice(0, 8);
+  loadLog.push({time: ts, text: `${prod.name} [${prod.size}] — كرتونة ${ctn}/${prod.cartons}`});
+  addLogItem(ts, prod.name, ctn, prod.cartons);
+  const isDone = scanned[key].size >= prod.cartons;
+  playBeep(isDone ? 'done' : 'success');
+  showSheet(prod, ctn);
+  updateHdr();
+  saveState();
+  return true;
+}
+
+function doScan() {
+  const inp = document.getElementById('qr-input');
+  const v = inp.value.trim(); if (!v) return;
+  processCode(v); inp.value = ''; inp.focus();
+}
+
+// ===== CAMERA =====
+async function toggleCam() {
+  if (camActive) { stopCam(); return; }
+  const btn = document.getElementById('cam-btn');
+  btn.textContent = '⏳ جاري الفتح...'; btn.disabled = true;
+  try {
+    try { camStream = await navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}}); }
+    catch(e1) { camStream = await navigator.mediaDevices.getUserMedia({video: true}); }
+    const vid = document.getElementById('cam-video');
+    vid.srcObject = camStream;
+    document.getElementById('cam-wrap').style.display = 'block';
+    btn.textContent = '⏹ إيقاف الكامرا'; btn.classList.add('active'); btn.disabled = false;
+    camActive = true; vid.play().catch(() => {}); startLoop();
+  } catch(e) {
+    btn.textContent = '📷 تشغيل الكامرا'; btn.disabled = false;
+    notify('تعذّر فتح الكامرا: ' + e.message, 'error');
+  }
+}
+
+function stopCam() {
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  document.getElementById('cam-wrap').style.display = 'none';
+  const btn = document.getElementById('cam-btn');
+  btn.textContent = '📷 تشغيل الكامرا'; btn.classList.remove('active');
+  camActive = false; paused = false;
+}
+
+function startLoop() {
+  const vid = document.getElementById('cam-video');
+  const cv = document.getElementById('scan-canvas');
+  const ctx = cv.getContext('2d', {willReadFrequently: true});
+  let last = 0;
+  function tick(ts) {
+    if (!camActive) return;
+    rafId = requestAnimationFrame(tick);
+    if (ts - last < 100) return; last = ts;
+    if (paused) return;
+    if (vid.readyState < 2 || vid.videoWidth === 0) return;
+    try { cv.width = vid.videoWidth; cv.height = vid.videoHeight; ctx.drawImage(vid, 0, 0); } catch(e) { return; }
+    if (typeof jsQR === 'undefined') return;
+    let img; try { img = ctx.getImageData(0, 0, cv.width, cv.height); } catch(e) { return; }
+    const res = jsQR(img.data, img.width, img.height, {inversionAttempts: 'dontInvert'});
+    if (res && res.data) {
+      const ok = processCode(res.data);
+      if (ok) {
+        paused = true;
+        document.getElementById('cam-frame').style.borderColor = 'var(--green)';
+        setTimeout(() => {
+          if (document.getElementById('cam-frame'))
+            document.getElementById('cam-frame').style.borderColor = 'var(--accent)';
+          paused = false;
+        }, 1500);
+      }
+    }
+  }
+  rafId = requestAnimationFrame(tick);
+}
+
+// ===== RESULT SHEET =====
+let sheetTimer = null;
+function showSheet(prod, justScanned) {
+  const key = String(prod.no);
+  const cnt = scanned[key] ? scanned[key].size : 0;
+  const total = prod.cartons, pct = Math.round(cnt / total * 100);
+  document.getElementById('sr-badge').textContent = `#${prod.no} — ${prod.size}`;
+  document.getElementById('sr-name').textContent = prod.name;
+  document.getElementById('sr-sub').textContent = `Miladess | ${total} كرتونة`;
+  document.getElementById('sr-count').textContent = cnt;
+  document.getElementById('sr-total').textContent = total;
+  document.getElementById('sr-remain').textContent = total - cnt;
+  document.getElementById('sr-prog').style.width = pct + '%';
+  const al = document.getElementById('sr-alert');
+  if (cnt >= total) {
+    al.innerHTML = `<div class="alert-done">✓ اكتمل — ${prod.name} (${total}/${total})</div>`;
+    notify(`✓ اكتمل: ${prod.name}`, 'success');
+  } else {
+    al.innerHTML = `<div style="text-align:center;font-size:11px;color:var(--gray);margin-top:6px">${pct}% — متبقي ${total - cnt} كرتونة</div>`;
+  }
+  const grid = document.getElementById('ctn-grid');
+  grid.innerHTML = '';
+  const loaded = scanned[key] || new Set();
+  for (let i = 1; i <= total; i++) {
+    const chip = document.createElement('div');
+    chip.className = 'ctn-chip ' + (i === justScanned ? 'just-loaded' : loaded.has(i) ? 'loaded' : 'pending');
+    chip.textContent = i;
+    grid.appendChild(chip);
+  }
+  document.getElementById('result-sheet').classList.add('show');
+  clearTimeout(sheetTimer);
+  if (camActive) sheetTimer = setTimeout(closeSheet, 5000);
+}
+
+function closeSheet() {
+  document.getElementById('result-sheet').classList.remove('show');
+}
+
+// ===== LOG =====
+function addLogItem(t, name, ctn, total) {
+  const feed = document.getElementById('log-feed');
+  const el = document.createElement('div'); el.className = 'log-item';
+  el.innerHTML = `<span class="log-time">${t}</span><span class="log-text">${name} — <strong style="color:var(--white)">${ctn}/${total}</strong></span>`;
+  feed.insertBefore(el, feed.firstChild);
+  if (feed.children.length > 20) feed.removeChild(feed.lastChild);
+}
+
+function updateHdr() {
+  const tot = Object.values(scanned).reduce((s, v) => s + v.size, 0);
+  document.getElementById('hdr-loaded').textContent = tot;
+  document.getElementById('hdr-pct').textContent = Math.round(tot / TOTAL * 100) + '%';
+}
+
+// ===== TABS =====
+function switchTab(tab) {
+  ['scan','products','summary'].forEach((t, i) => {
+    document.querySelectorAll('.tab')[i].classList.toggle('active', t === tab);
+    document.getElementById('screen-' + t).classList.toggle('active', t === tab);
+  });
+  if (tab === 'products') renderProducts();
+  if (tab === 'summary') renderSummary();
+}
+
+// ===== PRODUCTS =====
+function renderProducts() {
+  const q = (document.getElementById('prod-search').value || '').toLowerCase();
+  const list = document.getElementById('products-list'); list.innerHTML = '';
+  PRODUCTS.filter(p => !q || p.name.toLowerCase().includes(q) || String(p.no).includes(q)).forEach(p => {
+    const key = String(p.no), cnt = scanned[key] ? scanned[key].size : 0;
+    const pct = Math.round(cnt / p.cartons * 100);
+    const cls = cnt >= p.cartons ? 'done' : cnt > 0 ? 'partial' : '';
+    const badge = cnt >= p.cartons ? '<span class="badge badge-done">✓ مكتمل</span>'
+      : cnt > 0 ? `<span class="badge badge-partial">${pct}%</span>`
+      : '<span class="badge badge-pending">—</span>';
+    const el = document.createElement('div'); el.className = 'product-row ' + cls;
+    el.innerHTML = `<div class="prod-no">${p.no}</div><div class="prod-info"><div class="prod-name">${p.name}</div><div class="prod-size">${p.size}</div></div><div><div class="prog-nums">${cnt}/${p.cartons}</div><div class="prog-bar"><div class="prog-inner" style="width:${pct}%"></div></div></div><div class="prod-status">${badge}</div>`;
+    el.onclick = () => { switchTab('scan'); setTimeout(() => showSheet(p, null), 50); };
+    list.appendChild(el);
+  });
+}
+
+// ===== SUMMARY =====
+function renderSummary() {
+  const tot = Object.values(scanned).reduce((s, v) => s + v.size, 0);
+  const done = PRODUCTS.filter(p => scanned[String(p.no)] && scanned[String(p.no)].size >= p.cartons).length;
+  const part = PRODUCTS.filter(p => scanned[String(p.no)] && scanned[String(p.no)].size > 0 && scanned[String(p.no)].size < p.cartons).length;
+  const issues = PRODUCTS.filter(p => { const s = scanned[String(p.no)]; return s && s.size > 0 && s.size !== p.cartons; });
+  document.getElementById('summary-grid').innerHTML = `
+    <div class="sum-card"><div class="sum-val sum-green">${tot}</div><div class="sum-lbl">كراتين محمَّلة</div></div>
+    <div class="sum-card"><div class="sum-val">${TOTAL}</div><div class="sum-lbl">إجمالي المطلوب</div></div>
+    <div class="sum-card"><div class="sum-val sum-green">${done}</div><div class="sum-lbl">أصناف مكتملة</div></div>
+    <div class="sum-card"><div class="sum-val sum-amber">${part}</div><div class="sum-lbl">أصناف جزئية</div></div>
+    <div class="sum-card"><div class="sum-val ${issues.length ? 'sum-red' : 'sum-green'}">${issues.length}</div><div class="sum-lbl">مشاكل</div></div>
+    <div class="sum-card"><div class="sum-val">${Math.round(tot / TOTAL * 100)}%</div><div class="sum-lbl">نسبة الإنجاز</div></div>`;
+  const ip = document.getElementById('issues-panel');
+  if (!issues.length) {
+    ip.innerHTML = '<div class="panel-title">✓ مقارنة مع قائمة التعبئة</div><div style="color:var(--green);font-size:13px">لا توجد مشاكل</div>';
+  } else {
+    let h = '<div class="panel-title">⚠ أصناف بها فرق</div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--gray);padding-bottom:6px;border-bottom:1px solid #ffffff10"><span style="flex:2">الصنف</span><span>مطلوب</span><span>فعلي</span><span>فرق</span></div>';
+    issues.forEach(p => {
+      const act = scanned[String(p.no)].size, diff = act - p.cartons;
+      h += `<div class="issue-row"><span style="flex:2;color:var(--white)">${p.name}</span><span style="color:var(--amber)">${p.cartons}</span><span style="color:var(--accent)">${act}</span><span style="color:${diff>0?'var(--amber)':'var(--accent)'};">${diff>0?'+'+diff:diff}</span></div>`;
+    });
+    ip.innerHTML = h;
+  }
+  const lp = document.getElementById('log-panel');
+  if (!loadLog.length) {
+    lp.innerHTML = '<div class="panel-title">سجل التحميل</div><div style="color:var(--gray);font-size:12px">لا يوجد نشاط</div>';
+  } else {
+    let h = '<div class="panel-title">سجل التحميل</div>';
+    [...loadLog].reverse().slice(0, 50).forEach(l => {
+      h += `<div class="log-entry"><span class="log-time-s">${l.time}</span><span class="log-text-s">${l.text}</span></div>`;
+    });
+    lp.innerHTML = h;
+  }
+}
+
+// ===== VIEWER =====
+function renderViewer() {
+  const tot = Object.values(scanned).reduce((s, v) => s + v.size, 0);
+  const pct = Math.round(tot / TOTAL * 100);
+  const done = PRODUCTS.filter(p => scanned[String(p.no)] && scanned[String(p.no)].size >= p.cartons).length;
+  const part = PRODUCTS.filter(p => scanned[String(p.no)] && scanned[String(p.no)].size > 0 && scanned[String(p.no)].size < p.cartons).length;
+  const pend = PRODUCTS.length - done - part;
+  document.getElementById('v-pct').textContent = pct + '%';
+  document.getElementById('v-loaded').textContent = tot;
+  document.getElementById('v-remain').textContent = TOTAL - tot;
+  document.getElementById('v-total').textContent = TOTAL;
+  document.getElementById('v-bar').style.width = pct + '%';
+  document.getElementById('v-done').textContent = done;
+  document.getElementById('v-part').textContent = part;
+  document.getElementById('v-pend').textContent = pend;
+  const list = document.getElementById('v-list'); list.innerHTML = '';
+  PRODUCTS.forEach(p => {
+    const key = String(p.no), cnt = scanned[key] ? scanned[key].size : 0;
+    const ppct = Math.round(cnt / p.cartons * 100);
+    const cls = cnt >= p.cartons ? 'done' : cnt > 0 ? 'partial' : '';
+    const badge = cnt >= p.cartons ? '<span class="badge badge-done">✓ مكتمل</span>'
+      : cnt > 0 ? `<span class="badge badge-partial">${ppct}%</span>`
+      : '<span class="badge badge-pending">—</span>';
+    const el = document.createElement('div');
+    el.className = 'product-row ' + cls; el.style.cursor = 'default';
+    el.innerHTML = `<div class="prod-no">${p.no}</div><div class="prod-info"><div class="prod-name">${p.name}</div><div class="prod-size">${p.size}</div></div><div><div class="prog-nums">${cnt}/${p.cartons}</div><div class="prog-bar"><div class="prog-inner" style="width:${ppct}%"></div></div></div><div class="prod-status">${badge}</div>`;
+    list.appendChild(el);
+  });
+}
+
+// ===== NOTIFY =====
+function notify(msg, type) {
+  const n = document.getElementById('notif'); n.textContent = msg;
+  const b = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:9999;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:700;display:block;max-width:90%;text-align:center;';
+  if (type === 'success') n.style.cssText = b + 'background:#00b89422;border:1px solid var(--green);color:var(--green)';
+  else if (type === 'error') n.style.cssText = b + 'background:#e9456022;border:1px solid var(--accent);color:var(--accent)';
+  else n.style.cssText = b + 'background:#fdcb6e22;border:1px solid var(--amber);color:var(--amber)';
+  clearTimeout(n._t); n._t = setTimeout(() => n.style.display = 'none', 2800);
+}
+
+// ===== RESET =====
+function resetAll() {
+  if (!confirm('تصفير كل بيانات التحميل؟ لا يمكن التراجع.')) return;
+  scanned = {}; loadLog = [];
+  localStorage.removeItem('mld_scanned'); localStorage.removeItem('mld_log');
+  pushToServer({});
+  updateHdr(); closeSheet();
+  document.getElementById('log-feed').innerHTML = '';
+  notify('تم التصفير ✓', 'success');
+}
+
+// ===== INIT =====
+if (IS_VIEWER) {
+  document.getElementById('scanner-app').style.display = 'none';
+  document.getElementById('viewer-app').classList.add('active');
+  // Initial load then poll every 8 seconds
+  pullFromServer().then(() => renderViewer());
+  setInterval(() => pullFromServer().then(() => renderViewer()), 8000);
+} else {
+  loadState();
+  // Pull latest from server first, then show
+  pullFromServer().then(() => { updateHdr(); });
+  updateHdr();
+  (function(){
+    const feed = document.getElementById('log-feed');
+    [...loadLog].reverse().slice(0, 20).forEach(l => {
+      const el = document.createElement('div'); el.className = 'log-item';
+      el.innerHTML = `<span class="log-time">${l.time}</span><span class="log-text">${l.text}</span>`;
+      feed.appendChild(el);
+    });
+  })();
+  document.getElementById('qr-input').focus();
+}
+</script>
+</body>
+</html>
