@@ -9,6 +9,7 @@ export default async function handler(req, res) {
   const sql = neon(process.env.POSTGRES_URL);
 
   if (req.method === 'GET') {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     try {
       const rows = await sql`SELECT value FROM mld_store WHERE key = 'mld_scanned'`;
       return res.status(200).json(rows[0] ? JSON.parse(rows[0].value) : {});
